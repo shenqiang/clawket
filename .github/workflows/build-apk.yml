@@ -30,6 +30,9 @@ jobs:
         working-directory: apps/mobile
         run: npm install
 
+      - name: Build office-game assets (mobile:prepare)
+        run: npm run mobile:prepare
+
       - name: Generate self-signed release keystore
         run: |
           keytool -genkeypair -v \
