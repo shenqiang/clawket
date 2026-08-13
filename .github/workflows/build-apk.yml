@@ -30,12 +30,26 @@ jobs:
         working-directory: apps/mobile
         run: npm install
 
+      - name: Generate self-signed release keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore /tmp/clawket-release.keystore \
+            -alias upload \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass clawketpass123 \
+            -keypass clawketpass123 \
+            -dname "CN=Clawket Self-Hosted, OU=Dev, O=Clawket, L=Shanghai, ST=Shanghai, C=CN"
+
       # 关键：不设置任何 EXPO_PUBLIC_REVENUECAT_* / EXPO_PUBLIC_POSTHOG_*
       # 源码逻辑：未配置 → 跳过订阅计费 → 默认解锁 Pro → 不初始化 Google Play Billing
       - name: Build release APK (no RevenueCat / no GMS)
         working-directory: apps/mobile
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
+          CLAWKET_ANDROID_KEYSTORE_PATH: /tmp/clawket-release.keystore
+          CLAWKET_ANDROID_KEY_ALIAS: upload
+          CLAWKET_ANDROID_KEYSTORE_PASSWORD: clawketpass123
+          CLAWKET_ANDROID_KEY_PASSWORD: clawketpass123
           EXPO_PUBLIC_REVENUECAT_ENABLED: ""
           EXPO_PUBLIC_POSTHOG_ENABLED: ""
         run: bash scripts/build-android-apk.sh
