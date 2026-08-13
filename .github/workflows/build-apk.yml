@@ -50,6 +50,7 @@ jobs:
 
       # 关键：不设置任何 EXPO_PUBLIC_REVENUECAT_* / EXPO_PUBLIC_POSTHOG_*
       # 源码逻辑：未配置 → 跳过订阅计费 → 默认解锁 Pro → 不初始化 Google Play Billing
+      # GRADLE_OPTS 加大堆内存，避免 D8 dex 合并 OutOfMemory
       - name: Build release APK (no RevenueCat / no GMS)
         working-directory: apps/mobile
         env:
@@ -60,6 +61,8 @@ jobs:
           CLAWKET_ANDROID_KEY_PASSWORD: clawketpass123
           EXPO_PUBLIC_REVENUECAT_ENABLED: ""
           EXPO_PUBLIC_POSTHOG_ENABLED: ""
+          GRADLE_OPTS: "-Xmx4g -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
+          ORG_GRADLE_PROJECT_org.gradle.jvmargs: "-Xmx4g -XX:MaxMetaspaceSize=1g"
         run: bash scripts/build-android-apk.sh
 
       - name: Upload APK
