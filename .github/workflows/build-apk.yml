@@ -1,28 +1,37 @@
 name: Build Clawket APK (no GMS)
+
 on:
   workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Node.js 24
         uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: apps/mobile/package-lock.json
+
       - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
+
       - name: Install dependencies
         working-directory: apps/mobile
-        run: npm ci
+        run: npm install
+
+      # 关键：不设置任何 EXPO_PUBLIC_REVENUECAT_* / EXPO_PUBLIC_POSTHOG_*
+      # 源码逻辑：未配置 → 跳过订阅计费 → 默认解锁 Pro → 不初始化 Google Play Billing
       - name: Build release APK (no RevenueCat / no GMS)
         working-directory: apps/mobile
         env:
@@ -30,6 +39,7 @@ jobs:
           EXPO_PUBLIC_REVENUECAT_ENABLED: ""
           EXPO_PUBLIC_POSTHOG_ENABLED: ""
         run: bash scripts/build-android-apk.sh
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
