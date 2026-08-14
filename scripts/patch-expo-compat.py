@@ -81,6 +81,22 @@ if os.path.exists(eip_path):
 else:
     print(f"跳过（不存在）: {eip_path}")
 
+# 4. Clawket speech-recognition 模块（iOS 26 Speech API，Catalyst 18.5 SDK 没有）
+# 整个文件条件编译跳过 Catalyst（语音识别在 Mac Catalyst 不需要）
+speech_path = f"{repo_root}/apps/mobile/modules/clawket-speech-recognition/ios/ClawketSpeechRecognitionModule.swift"
+if os.path.exists(speech_path):
+    src = open(speech_path).read()
+    orig = src
+    if "#if !targetEnvironment(macCatalyst)" not in src:
+        src = "#if !targetEnvironment(macCatalyst)\n" + src + "\n#endif\n"
+        open(speech_path, "w").write(src)
+        changed = True
+        print(f"speech-recognition 模块已加 Catalyst 条件编译: {speech_path}")
+    else:
+        print("speech-recognition 已有条件编译")
+else:
+    print(f"跳过（不存在）: {speech_path}")
+
 if not changed:
     print("警告: 没有任何文件被修改，请检查路径")
     sys.exit(0)
