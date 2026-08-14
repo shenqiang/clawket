@@ -36,5 +36,14 @@ src = src.replace(
 )
 print("resolve_destination 已修复（Catalyst destination）")
 
+# 4. 抑制 C++11 narrowing 警告（react-native-enriched-markdown 在 Catalyst 下
+# BOOL→bool 收窄错误，C++17 严格模式报错）。加 -Wno-c++11-narrowing。
+if 'Wno-c++11-narrowing' not in src:
+    src = src.replace(
+        'CODE_SIGNING_ALLOWED=NO\n    CODE_SIGNING_REQUIRED=NO',
+        'CODE_SIGNING_ALLOWED=NO\n    CODE_SIGNING_REQUIRED=NO\n    GCC_WARN_INHIBIT_ALL_WARNINGS=YES\n    OTHER_CFLAGS="$(inherited) -Wno-c++11-narrowing"',
+    )
+    print("已加 -Wno-c++11-narrowing")
+
 open(path, "w").write(src)
 print("build-macos.sh 补丁完成")
