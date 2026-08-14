@@ -21,6 +21,13 @@ if "patch-expo-compat" not in src:
     print("expo 兼容补丁调用已注入")
 else:
     print("expo 兼容补丁调用已存在")
+# expo-camera VisionKit 补丁（单独脚本，含复杂条件编译逻辑）
+inject2 = 'python3 "$GITHUB_WORKSPACE/scripts/patch-expo-camera-visionkit.py" "$ROOT_DIR/../.."\n'
+if "patch-expo-camera-visionkit" not in src:
+    src = src.replace("ensure_pods\n", inject2 + "ensure_pods\n", 1)
+    print("expo-camera VisionKit 补丁调用已注入")
+else:
+    print("expo-camera VisionKit 补丁调用已存在")
 
 # 3. 修复 resolve_destination：workspace 可能尚未生成（pod install 顺序问题），
 # 且 scheme 不支持 Catalyst 时 fallback 会选错 destination。
