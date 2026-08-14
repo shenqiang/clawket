@@ -47,6 +47,11 @@ jobs:
         run: npm run mobile:prepare
 
       # 生成 iOS 原生工程（Mac Catalyst 构建依赖 ios/ 目录）
+      # 先给 app.json 加 supportsMac，让 prebuild 生成 Catalyst 支持的工程
+      - name: Enable Catalyst in app.json
+        working-directory: apps/mobile
+        run: python3 ../../scripts/enable-catalyst.py
+
       - name: Expo prebuild (ios)
         working-directory: apps/mobile
         run: npx expo prebuild --platform ios --no-install
