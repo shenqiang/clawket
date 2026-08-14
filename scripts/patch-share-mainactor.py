@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""精确修复 expo-sharing-extension 的 Swift 6 并发错误（最终方案）
-根因分析（基于真实模板源码）：
-- SLComposeServiceViewController 是 MainActor 隔离的，其子类方法继承隔离
-- copyAndProcessFile / saveDataToAppGroup 是纯 FileManager 操作，不需要 MainActor
-- loadItem @Sendable 回调里同步调用它们 → "MainActor 方法在 nonisolated 同步调用"
-- processInputItems 显式 nonisolated，调 parseProvider → 若 parseProvider 变 MainActor
-  → "sending provider data races"
-
-最终修复：给两个纯函数方法显式 nonisolated（覆盖继承的 MainActor 隔离）
-→ loadItem 回调、parseProvider、processInputItems 全部不跨隔离域，所有错误消失。
+"""精确修复 expo-sharing-extension 的 Swift 6 并发错误（最终版 v3）
+根因：
+- SLComposeServiceViewController 子类 MainActor 隔离
+- copyAndProcessFile / saveDataToAppGroup 是纯 FileManager 操作 → nonisolated
+- 但它们引用 appGroupId / hostAppScheme 属性（也继承 MainActor 隔离）
+  → nonisolated 方法访问 MainActor 属性报错
+修复：
+1. 两个方法 → nonisolated
+2. appGroupId / hostAppScheme 两个计算属性 → nonisolated（纯 Bundle 读取）
 """
 import re, sys
 
@@ -42,10 +41,30 @@ if not re.search(r'nonisolated\s*private func saveDataToAppGroup', src):
 else:
     print("2. saveDataToAppGroup 已是 nonisolated")
 
-# 3. 移除之前加的 MainActor.assumeIsolated 包装（不再需要，恢复原始调用）
-# 单行形式: MainActor.assumeIsolated { self.foo(...) } → self.foo(...)
+# 3. appGroupId 计算属性 → nonisolated
+if not re.search(r'nonisolated\s*private var appGroupId', src):
+    src = re.sub(
+        r'^(\s*)private var appGroupId: String \{',
+        r'\1nonisolated private var appGroupId: String {',
+        src, count=1, flags=re.M,
+    )
+    print("3. appGroupId → nonisolated")
+else:
+    print("3. appGroupId 已是 nonisolated")
+
+# 4. hostAppScheme 计算属性 → nonisolated（保险，可能其他方法用）
+if not re.search(r'nonisolated\s*private var hostAppScheme', src):
+    src = re.sub(
+        r'^(\s*)private var hostAppScheme: String \{',
+        r'\1nonisolated private var hostAppScheme: String {',
+        src, count=1, flags=re.M,
+    )
+    print("4. hostAppScheme → nonisolated")
+else:
+    print("4. hostAppScheme 已是 nonisolated")
+
+# 5. 移除之前加的 MainActor.assumeIsolated 包装（不再需要）
 src = re.sub(r'MainActor\.assumeIsolated \{\s*self\.([^}]+)\s*\}', r'self.\1', src)
-# 多行形式: MainActor.assumeIsolated { self.foo(\n ... \n) } → self.foo(\n ... \n)
 src = re.sub(r'MainActor\.assumeIsolated \{\s*self\.', 'self.', src)
 
 open(path, "w").write(src)
@@ -53,5 +72,5 @@ print("补丁完成, 变更:", "是" if src != orig else "否")
 
 # 验证
 for line in src.split('\n'):
-    if 'nonisolated private func' in line or 'assumeIsolated' in line or line.strip() == '@MainActor':
+    if 'nonisolated' in line:
         print("  >", line.strip()[:100])
