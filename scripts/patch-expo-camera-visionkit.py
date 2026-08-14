@@ -16,11 +16,30 @@ GUARD = "#if !targetEnvironment(macCatalyst)"
 END = "#endif"
 
 def wrap_block(src, anchor, include_anchor=True):
-    """找到 anchor 所在块（从 anchor 到匹配 }），返回包裹后的 src"""
+    """找到 anchor 所在块（从 anchor 到匹配 }），返回包裹后的 src
+    若 anchor 前一行是 @available，则从 @available 开始包（属性不能跨 #if）"""
     i = src.find(anchor)
     if i < 0:
         return src, False
     start = i if include_anchor else i + len(anchor)
+    # 检查 anchor 前是否有 @available 标注（往前找最近的非空行）
+    prev_newline = src.rfind("\n", 0, i)
+    prev_line = src[prev_newline+1:i].strip()
+    while prev_line == "" and prev_newline > 0:
+        prev_newline = src.rfind("\n", 0, prev_newline)
+        prev_line = src[prev_newline+1:i].strip()
+    if prev_line.startswith("@available") or prev_line.startswith("@MainActor"):
+        start = prev_newline + 1
+        # 可能还有连续属性行（@available 前还有 @MainActor 等），继续往前
+        while True:
+            prev_newline2 = src.rfind("\n", 0, start - 1)
+            if prev_newline2 < 0:
+                break
+            prev_line2 = src[prev_newline2+1:start].strip()
+            if prev_line2.startswith("@"):
+                start = prev_newline2 + 1
+            else:
+                break
     # 数大括号找块结束
     depth = 0
     k = i
@@ -33,10 +52,10 @@ def wrap_block(src, anchor, include_anchor=True):
         k += 1
     if k >= len(src):
         return src, False
-    block = src[i:k+1]
+    block = src[start:k+1]
     if GUARD in block:
         return src, False
-    return src[:i] + GUARD + "\n" + block + "\n" + END + src[k+1:], True
+    return src[:start] + GUARD + "\n" + block + "\n" + END + src[k+1:], True
 
 # 1. VisionScannerDelegate.swift：只包 VisionScannerDelegate 类（保留 ScannerResultHandler 协议）
 p = f"{base}/Current/VisionScannerDelegate.swift"
@@ -57,7 +76,6 @@ if os.path.exists(p):
     else:
         open(p, "w").write(src)
         print(f"VisionScannerDelegate 无需修改或已处理: {p}")
-
 # 2. BarcodeScannerUtils.swift：只包 visionDataScannerObjectToDictionary
 p = f"{base}/Current/BarcodeScannerUtils.swift"
 if os.path.exists(p):
@@ -133,23 +151,9 @@ if os.path.exists(p):
                     if GUARD not in block:
                         src = src[:seg_start] + GUARD + "\n" + block + "\n" + END + src[k+1:]
                         ok = True
-        # e) onItemScanned
-        i = src.find("  func onItemScanned(result: [String: Any]) {")
-        if i >= 0:
-            depth = 0
-            k = i
-            while k < len(src):
-                if src[k] == '{': depth += 1
-                elif src[k] == '}':
-                    depth -= 1
-                    if depth == 0:
-                        break
-                k += 1
-            if k > i:
-                block = src[i:k+1]
-                if GUARD not in block:
-                    src = src[:i] + GUARD + "\n" + block + "\n" + END + src[k+1:]
-                    ok = True
+        # e) onItemScanned —— 保留！它是 ScannerResultHandler 协议要求的实现，
+        #    且实现只调 sendEvent（不引用 VisionKit 类型），必须始终编译。
+        #    不包条件编译。
         if src != orig:
             open(p, "w").write(src)
             changed = True
