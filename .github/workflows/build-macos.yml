@@ -61,11 +61,7 @@ jobs:
 
       # 修复 expo-modules-core 的 SE-0449 语法（Swift 6.1+ 专属）：
       # `extension X: @MainActor P` 在 Swift 5 模式下不认识。
-      # 去掉 @MainActor 后项目可整体用 Swift 5 编译（RevenueCat 等所有 pod 都过）
-      - name: Patch expo-modules-core (SE-0449 syntax)
-        working-directory: apps/mobile
-        run: python3 ../../scripts/patch-expo-se0449.py
-
+      # 该补丁已注入 build-macos.sh 内部（npm install 之后执行），无需独立步骤
       # 修复 RevenueCat SDK 的 Swift 6 并发错误：
       # RevenueCat 旧版本在 Swift 6 语言模式下有 100+ 处 static property Sendable 错误。
       # 方案：全局 Swift 5 编译（见下）+ expo SE-0449 补丁后，RevenueCat 自动通过。
