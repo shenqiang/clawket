@@ -53,12 +53,16 @@ jobs:
 
       # 关键：不设置 EXPO_PUBLIC_REVENUECAT_ENABLED → 自动解锁 Pro（多连接免费）
       # MACOS_ALLOW_SIGNING 默认 0 → 无需 Apple 开发者签名
-      # 修复 Swift 6 严格并发：Pods 强制 -swift-version 6，expo-modules-core 55 不兼容
-      # → 给 build-macos.sh 的 xcodebuild 打补丁，强制 SWIFT_VERSION=5.0
-      - name: Patch build script (Swift 5 mode)
+      # 修复 Swift 编译问题：
+      # - expo-modules-core 55 使用 `extension X: @MainActor P` 语法（SE-0449，Swift 6.1+）
+      #   → 必须用 Swift 6 语言模式编译（Swift 5 不认识该语法）
+      # - 但 Swift 6 默认严格并发检查，expo 55 旧代码有 24 处并发错误
+      #   → 同时注入 SWIFT_STRICT_CONCURRENCY=minimal 放宽并发检查
+      # 两者组合：SWIFT_VERSION=6 + SWIFT_STRICT_CONCURRENCY=minimal
+      - name: Patch build script (Swift 6 + relaxed concurrency)
         working-directory: apps/mobile
         run: |
-          perl -pi -e 's/CODE_SIGNING_REQUIRED=NO/CODE_SIGNING_REQUIRED=NO SWIFT_VERSION=5.0 SWIFT_STRICT_CONCURRENCY=minimal/' scripts/build-macos.sh
+          perl -pi -e 's/CODE_SIGNING_REQUIRED=NO/CODE_SIGNING_REQUIRED=NO SWIFT_VERSION=6.0 SWIFT_STRICT_CONCURRENCY=minimal/' scripts/build-macos.sh
           grep -n "SWIFT_VERSION" scripts/build-macos.sh
 
       - name: Build Mac Catalyst app
