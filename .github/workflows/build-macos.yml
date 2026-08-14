@@ -70,6 +70,12 @@ jobs:
         working-directory: apps/mobile
         run: python3 ../../scripts/patch-podfile-revenuecat.py
 
+      # 调试：dump 可用 destinations（找 Catalyst destination id）
+      - name: Show destinations
+        working-directory: apps/mobile
+        run: |
+          xcodebuild -workspace ios/Clawket.xcworkspace -scheme Clawket -showdestinations 2>&1 | head -40
+
       # 关键：不设置 EXPO_PUBLIC_REVENUECAT_ENABLED → 自动解锁 Pro（多连接免费）
       # MACOS_ALLOW_SIGNING 默认 0 → 无需 Apple 开发者签名
       # 修复 Swift 编译问题：
@@ -86,9 +92,6 @@ jobs:
           EXPO_PUBLIC_REVENUECAT_ENABLED: ""
           EXPO_PUBLIC_POSTHOG_ENABLED: ""
           MACOS_ALLOW_SIGNING: "0"
-          # 强制指定 Catalyst destination（resolve_destination 的 grep 匹配可能失败
-          # 导致 fallback 到原生 Mac destination，产物路径不对）
-          MACOS_DESTINATION: "platform=macOS,variant=Mac Catalyst"
         run: npm run build:macos
 
       - name: Upload .app bundle
