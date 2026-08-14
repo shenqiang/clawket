@@ -22,5 +22,18 @@ if "patch-expo-compat" not in src:
 else:
     print("expo 兼容补丁调用已存在")
 
+# 3. 修复 resolve_destination：grep 匹配失败时 fallback 到 iOS destination
+# 强制 Catalyst destination（Xcode 16.4 用 generic/platform=macOS,variant=Mac Catalyst）
+src = src.replace(
+    'DESTINATION="${MACOS_DESTINATION:-platform=macOS,variant=Mac Catalyst}"',
+    'DESTINATION="${MACOS_DESTINATION:-generic/platform=macOS,variant=Mac Catalyst}"',
+)
+# 同时让 resolve_destination 不再 fallback 到 id=...（iOS destination）
+src = src.replace(
+    'if [[ -n "$mac_id" ]]; then\n    echo "id=${mac_id}"\n    return\n  fi',
+    'if [[ -n "$mac_id" ]]; then\n    echo "$DESTINATION"\n    return\n  fi',
+)
+print("resolve_destination 已修复（强制 Catalyst）")
+
 open(path, "w").write(src)
 print("build-macos.sh 补丁完成")
