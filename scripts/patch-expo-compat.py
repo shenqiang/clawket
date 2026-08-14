@@ -81,19 +81,22 @@ if os.path.exists(eip_path):
 else:
     print(f"跳过（不存在）: {eip_path}")
 
-# 4. Clawket speech-recognition 模块（iOS 26 Speech API，Catalyst 18.5 SDK 没有）
-# 整个文件条件编译跳过 Catalyst（语音识别在 Mac Catalyst 不需要）
+# 4. Clawket speech-recognition 模块（iOS 26 Speech API，SDK 18.5 没有）
+# 该 pod 在 iPhoneOS target 下编译（Catalyst 构建也先编 iOS 版），#if targetEnvironment
+# 不生效。直接替换为 stub（保留 Expo Module 结构，函数返回不支持）。
+# 语音识别在 Mac Catalyst 上不需要，JS 层 isAvailableAsync=false 会优雅降级。
 speech_path = f"{repo_root}/apps/mobile/modules/clawket-speech-recognition/ios/ClawketSpeechRecognitionModule.swift"
+stub_path = f"{repo_root}/scripts/speech-stub.swift"
 if os.path.exists(speech_path):
-    src = open(speech_path).read()
-    orig = src
-    if "#if !targetEnvironment(macCatalyst)" not in src:
-        src = "#if !targetEnvironment(macCatalyst)\n" + src + "\n#endif\n"
-        open(speech_path, "w").write(src)
-        changed = True
-        print(f"speech-recognition 模块已加 Catalyst 条件编译: {speech_path}")
+    if "Stub version for Mac Catalyst" not in open(speech_path).read():
+        if os.path.exists(stub_path):
+            open(speech_path, "w").write(open(stub_path).read())
+            changed = True
+            print(f"speech-recognition 模块已替换为 stub: {speech_path}")
+        else:
+            print(f"跳过（stub 模板不存在）: {stub_path}")
     else:
-        print("speech-recognition 已有条件编译")
+        print("speech-recognition 已是 stub")
 else:
     print(f"跳过（不存在）: {speech_path}")
 
