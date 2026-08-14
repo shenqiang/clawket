@@ -59,10 +59,17 @@ jobs:
         working-directory: apps/mobile
         run: python3 ../../scripts/patch-share-mainactor.py
 
+      # 修复 expo-modules-core 的 SE-0449 语法（Swift 6.1+ 专属）：
+      # `extension X: @MainActor P` 在 Swift 5 模式下不认识。
+      # 去掉 @MainActor 后项目可整体用 Swift 5 编译（RevenueCat 等所有 pod 都过）
+      - name: Patch expo-modules-core (SE-0449 syntax)
+        working-directory: apps/mobile
+        run: python3 ../../scripts/patch-expo-se0449.py
+
       # 修复 RevenueCat SDK 的 Swift 6 并发错误：
-      # RevenueCat 旧版本在 Swift 6 语言模式下有 100+ 处 static property Sendable 错误
-      #（即使 SWIFT_STRICT_CONCURRENCY=minimal 也报）。post_install 钩子给
-      # RevenueCat pod 单独设 SWIFT_VERSION=5.0（Swift 5 模式这些全是 warning）。
+      # RevenueCat 旧版本在 Swift 6 语言模式下有 100+ 处 static property Sendable 错误。
+      # 方案：全局 Swift 5 编译（见下）+ expo SE-0449 补丁后，RevenueCat 自动通过。
+      # 这里保留 Podfile 钩子作为双保险（如果还有 pod 报错可扩展）
       - name: Patch Podfile (RevenueCat Swift 5 mode)
         working-directory: apps/mobile
         run: python3 ../../scripts/patch-podfile-revenuecat.py
@@ -70,15 +77,13 @@ jobs:
       # 关键：不设置 EXPO_PUBLIC_REVENUECAT_ENABLED → 自动解锁 Pro（多连接免费）
       # MACOS_ALLOW_SIGNING 默认 0 → 无需 Apple 开发者签名
       # 修复 Swift 编译问题：
-      # - expo-modules-core 55 使用 `extension X: @MainActor P` 语法（SE-0449，Swift 6.1+）
-      #   → 必须用 Swift 6 语言模式编译（Swift 5 不认识该语法）
-      # - 但 Swift 6 默认严格并发检查，expo 55 旧代码有 24 处并发错误
-      #   → 同时注入 SWIFT_STRICT_CONCURRENCY=minimal 放宽并发检查
-      # 两者组合：SWIFT_VERSION=6.0 + SWIFT_STRICT_CONCURRENCY=minimal
-      - name: Patch build script (Swift 6 + relaxed concurrency)
+      # - expo-modules-core 的 SE-0449 语法已单独 patch（去掉 @MainActor）
+      # - RevenueCat 旧版 100+ 处 Sendable 错误
+      # → 全局 SWIFT_VERSION=5.0（所有 pod 的并发检查都降为 warning）
+      - name: Patch build script (Swift 5 global)
         working-directory: apps/mobile
         run: |
-          perl -pi -e 's/CODE_SIGNING_REQUIRED=NO/CODE_SIGNING_REQUIRED=NO SWIFT_VERSION=6.0 SWIFT_STRICT_CONCURRENCY=minimal/' scripts/build-macos.sh
+          perl -pi -e 's/CODE_SIGNING_REQUIRED=NO/CODE_SIGNING_REQUIRED=NO SWIFT_VERSION=5.0 SWIFT_STRICT_CONCURRENCY=minimal/' scripts/build-macos.sh
           grep -n "SWIFT_VERSION" scripts/build-macos.sh
 
       - name: Build Mac Catalyst app
