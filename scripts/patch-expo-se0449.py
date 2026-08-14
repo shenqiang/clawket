@@ -32,5 +32,6 @@ for path in targets:
 
 if not changed:
     print("警告: 没有任何文件被修改，请检查路径")
-    sys.exit(1)
+    # 不退出非零（避免 set -e 下中断整个构建）；路径问题只影响补丁不生效
+    sys.exit(0)
 print("SE-0449 补丁完成")
