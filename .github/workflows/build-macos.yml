@@ -66,7 +66,7 @@ jobs:
       #   → 必须用 Swift 6 语言模式编译（Swift 5 不认识该语法）
       # - 但 Swift 6 默认严格并发检查，expo 55 旧代码有 24 处并发错误
       #   → 同时注入 SWIFT_STRICT_CONCURRENCY=minimal 放宽并发检查
-      # 两者组合：SWIFT_VERSION=6 + SWIFT_STRICT_CONCURRENCY=minimal
+      # 两者组合：SWIFT_VERSION=6.0 + SWIFT_STRICT_CONCURRENCY=minimal
       - name: Patch build script (Swift 6 + relaxed concurrency)
         working-directory: apps/mobile
         run: |
