@@ -55,12 +55,14 @@ jobs:
 
       # 关键：不设置 EXPO_PUBLIC_REVENUECAT_ENABLED → 自动解锁 Pro（多连接免费）
       # MACOS_ALLOW_SIGNING 默认 0 → 无需 Apple 开发者签名
+      # SWIFT_STRICT_CONCURRENCY=minimal → 兼容 Swift 6 严格并发检查（expo SDK 55 旧代码）
       - name: Build Mac Catalyst app
         working-directory: apps/mobile
         env:
           EXPO_PUBLIC_REVENUECAT_ENABLED: ""
           EXPO_PUBLIC_POSTHOG_ENABLED: ""
           MACOS_ALLOW_SIGNING: "0"
+          SWIFT_STRICT_CONCURRENCY: "minimal"
         run: npm run build:macos
 
       - name: Upload .app bundle
