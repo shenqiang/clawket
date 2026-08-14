@@ -41,9 +41,7 @@ jobs:
       # 1.1.0 引用 iOS 26 专属类型导致 Catalyst 编译失败，1.4.0 已修复（compiler>=6.2 保护）
       - name: Upgrade react-native-bottom-tabs (Catalyst fix)
         working-directory: apps/mobile
-        run: |
-          npm install react-native-bottom-tabs@^1.4.0
-          grep '"react-native-bottom-tabs"' package.json
+        run: npm install react-native-bottom-tabs@^1.4.0
 
       - name: Build office-game assets (mobile:prepare)
         run: npm run mobile:prepare
@@ -60,7 +58,7 @@ jobs:
       - name: Patch build script (Swift 5 mode)
         working-directory: apps/mobile
         run: |
-          sed -i 's|CODE_SIGNING_REQUIRED=NO|CODE_SIGNING_REQUIRED=NO SWIFT_VERSION=5.0 SWIFT_STRICT_CONCURRENCY=minimal|' scripts/build-macos.sh
+          perl -pi -e 's/CODE_SIGNING_REQUIRED=NO/CODE_SIGNING_REQUIRED=NO SWIFT_VERSION=5.0 SWIFT_STRICT_CONCURRENCY=minimal/' scripts/build-macos.sh
           grep -n "SWIFT_VERSION" scripts/build-macos.sh
 
       - name: Build Mac Catalyst app
