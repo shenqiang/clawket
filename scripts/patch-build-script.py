@@ -14,13 +14,13 @@ src = re.sub(
     src,
 )
 
-# 2. 注入 SE-0449 补丁调用（在 ensure_pods 之前）
-inject = 'python3 "$GITHUB_WORKSPACE/scripts/patch-expo-se0449.py" "$ROOT_DIR/../../node_modules/expo-modules-core/ios"\n'
-if "patch-expo-se0449" not in src:
+# 2. 注入 expo 兼容补丁调用（在 ensure_pods 之前，npm install 之后）
+inject = 'python3 "$GITHUB_WORKSPACE/scripts/patch-expo-compat.py" "$ROOT_DIR/../.."\n'
+if "patch-expo-compat" not in src:
     src = src.replace("ensure_pods\n", inject + "ensure_pods\n", 1)
-    print("SE-0449 补丁调用已注入")
+    print("expo 兼容补丁调用已注入")
 else:
-    print("SE-0449 补丁调用已存在")
+    print("expo 兼容补丁调用已存在")
 
 open(path, "w").write(src)
 print("build-macos.sh 补丁完成")
