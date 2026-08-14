@@ -22,19 +22,24 @@ if "patch-expo-compat" not in src:
 else:
     print("expo 兼容补丁调用已存在")
 
-# 3. 修复 resolve_destination：app.json 已加 supportsMac（prebuild 生成 Catalyst 工程），
-# Catalyst destination 应有效。默认用 platform=macOS,variant=Mac Catalyst；
-# fallback 不再用 iOS 模拟器 id（避免构建 iOS 版）。
+# 3. 修复 resolve_destination：workspace 可能尚未生成（pod install 顺序问题），
+# 且 scheme 不支持 Catalyst 时 fallback 会选错 destination。
+# 简化：直接强制 Catalyst destination（SUPPORTS_MACCATALYST 已 patch 生效）。
 src = src.replace(
     'DESTINATION="${MACOS_DESTINATION:-platform=macOS,variant=Mac Catalyst}"',
     'DESTINATION="${MACOS_DESTINATION:-platform=macOS,variant=Mac Catalyst}"',
+)
+# 让 resolve_destination 在 workspace 不存在时直接用 DESTINATION（不跑 showdestinations）
+src = src.replace(
+    'if [[ -n "${MACOS_DESTINATION:-}" ]]; then\n    echo "$MACOS_DESTINATION"\n    return\n  fi',
+    'if [[ -n "${MACOS_DESTINATION:-}" ]]; then\n    echo "$MACOS_DESTINATION"\n    return\n  fi\n\n  if [[ ! -f "$WORKSPACE_PATH/contents.xcworkspacedata" ]]; then\n    echo "$DESTINATION"\n    return\n  fi',
 )
 # 同时让 resolve_destination 不再 fallback 到 id=...（iOS destination）
 src = src.replace(
     'if [[ -n "$mac_id" ]]; then\n    echo "id=${mac_id}"\n    return\n  fi',
     'if [[ -n "$mac_id" ]]; then\n    echo "$DESTINATION"\n    return\n  fi',
 )
-print("resolve_destination 已修复（Catalyst destination）")
+print("resolve_destination 已修复（workspace 缺失时用默认 Catalyst）")
 
 # 4. 抑制 C++11 narrowing 警告（react-native-enriched-markdown 在 Catalyst 下
 # BOOL→bool 收窄错误，C++17 严格模式报错）。加 -Wno-c++11-narrowing。
