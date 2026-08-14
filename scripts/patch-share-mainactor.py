@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""精确修复 expo-sharing-extension 的 Swift 6 并发错误（基于真实模板源码）
-错误1: loadItem @Sendable 回调中同步调用 MainActor 方法
-  → copyAndProcessFile / saveDataToAppGroup 加 @MainActor + 调用点 assumeIsolated
-错误2: 类级 @MainActor 会与 nonisolated processInputItems 冲突（sending provider data race）
-  → 不加类级 @MainActor，只标注两个方法
+"""精确修复 expo-sharing-extension 的 Swift 6 并发错误（最终方案）
+根因分析（基于真实模板源码）：
+- SLComposeServiceViewController 是 MainActor 隔离的，其子类方法继承隔离
+- copyAndProcessFile / saveDataToAppGroup 是纯 FileManager 操作，不需要 MainActor
+- loadItem @Sendable 回调里同步调用它们 → "MainActor 方法在 nonisolated 同步调用"
+- processInputItems 显式 nonisolated，调 parseProvider → 若 parseProvider 变 MainActor
+  → "sending provider data races"
+
+最终修复：给两个纯函数方法显式 nonisolated（覆盖继承的 MainActor 隔离）
+→ loadItem 回调、parseProvider、processInputItems 全部不跨隔离域，所有错误消失。
 """
 import re, sys
 
@@ -11,72 +16,42 @@ path = "ios/expo-sharing-extension/ShareIntoViewController.swift"
 src = open(path).read()
 orig = src
 
-# 0. 移除可能已加的类级 @MainActor（安全起见）
-src = re.sub(r'^@MainActor\s*\n(?=class ShareIntoViewController)', '', src, flags=re.M)
-print("0. 移除类级 @MainActor（如存在）")
+# 0. 移除之前可能加的 @MainActor（方法级）
+src = re.sub(r'@MainActor\s*\n(?=\s*private func (?:copyAndProcessFile|saveDataToAppGroup)\()', '', src)
+print("0. 移除方法级 @MainActor（如存在）")
 
-# 1. 给 copyAndProcessFile 加 @MainActor
-if not re.search(r'@MainActor\s*\n\s*private func copyAndProcessFile', src):
+# 1. copyAndProcessFile → nonisolated
+if not re.search(r'nonisolated\s*private func copyAndProcessFile', src):
     src = re.sub(
-        r'^(\s*private func copyAndProcessFile\()',
-        r'@MainActor\n\1',
+        r'^(\s*)private func copyAndProcessFile\(',
+        r'\1nonisolated private func copyAndProcessFile(',
         src, count=1, flags=re.M,
     )
-    print("1. copyAndProcessFile 添加 @MainActor")
+    print("1. copyAndProcessFile → nonisolated")
 else:
-    print("1. copyAndProcessFile 已有 @MainActor")
+    print("1. copyAndProcessFile 已是 nonisolated")
 
-# 2. 给 saveDataToAppGroup 加 @MainActor
-if not re.search(r'@MainActor\s*\n\s*private func saveDataToAppGroup', src):
+# 2. saveDataToAppGroup → nonisolated
+if not re.search(r'nonisolated\s*private func saveDataToAppGroup', src):
     src = re.sub(
-        r'^(\s*private func saveDataToAppGroup\()',
-        r'@MainActor\n\1',
+        r'^(\s*)private func saveDataToAppGroup\(',
+        r'\1nonisolated private func saveDataToAppGroup(',
         src, count=1, flags=re.M,
     )
-    print("2. saveDataToAppGroup 添加 @MainActor")
+    print("2. saveDataToAppGroup → nonisolated")
 else:
-    print("2. saveDataToAppGroup 已有 @MainActor")
+    print("2. saveDataToAppGroup 已是 nonisolated")
 
-# 3. 包装 copyAndProcessFile 调用（单行）
-pat_copy = re.compile(r'(let result = )self\.copyAndProcessFile\(url: url, type: type\)')
-src, n_copy = pat_copy.subn(
-    r'\g<1>MainActor.assumeIsolated { self.copyAndProcessFile(url: url, type: type) }',
-    src,
-)
-print(f"3. copyAndProcessFile 调用包装: {n_copy} 处")
-
-# 4. 包装 saveDataToAppGroup 调用（含多行，配对括号扫描）
-def wrap_save_calls(text):
-    out = []
-    i = 0
-    n = 0
-    while i < len(text):
-        m = re.compile(r'(let result = |return )self\.saveDataToAppGroup\(').search(text, i)
-        if not m:
-            out.append(text[i:])
-            break
-        start = m.start()
-        out.append(text[i:start])
-        prefix = m.group(1)
-        open_paren = m.end() - 1
-        depth = 0
-        j = open_paren
-        while j < len(text):
-            if text[j] == '(':
-                depth += 1
-            elif text[j] == ')':
-                depth -= 1
-                if depth == 0:
-                    break
-            j += 1
-        call_expr = text[open_paren:j+1]
-        out.append(prefix + f'MainActor.assumeIsolated {{ self.saveDataToAppGroup{call_expr} }}')
-        n += 1
-        i = j + 1
-    return ''.join(out), n
-
-src, n_save = wrap_save_calls(src)
-print(f"4. saveDataToAppGroup 调用包装: {n_save} 处")
+# 3. 移除之前加的 MainActor.assumeIsolated 包装（不再需要，恢复原始调用）
+# 单行形式: MainActor.assumeIsolated { self.foo(...) } → self.foo(...)
+src = re.sub(r'MainActor\.assumeIsolated \{\s*self\.([^}]+)\s*\}', r'self.\1', src)
+# 多行形式: MainActor.assumeIsolated { self.foo(\n ... \n) } → self.foo(\n ... \n)
+src = re.sub(r'MainActor\.assumeIsolated \{\s*self\.', 'self.', src)
 
 open(path, "w").write(src)
 print("补丁完成, 变更:", "是" if src != orig else "否")
+
+# 验证
+for line in src.split('\n'):
+    if 'nonisolated private func' in line or 'assumeIsolated' in line or line.strip() == '@MainActor':
+        print("  >", line.strip()[:100])
