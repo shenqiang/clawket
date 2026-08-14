@@ -8,8 +8,9 @@ permissions:
 
 jobs:
   build:
-    # macos-14 = Apple Silicon (arm64) → 产出原生 arm64 app，M2 直接运行
-    runs-on: macos-14
+    # macos-15 = Apple Silicon (arm64) → 产出原生 arm64 app，M2 直接运行
+    # Xcode 16+ 默认（RN 0.83 需要 Xcode 16，macos-14 默认 15.4 会失败）
+    runs-on: macos-15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,6 +21,17 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: apps/mobile/package-lock.json
+
+      # 确保用最新 Xcode（RN 0.83 要求 Xcode 16+）
+      - name: Select latest Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.4.app 2>/dev/null || \
+          sudo xcode-select -s /Applications/Xcode_16.3.app 2>/dev/null || \
+          sudo xcode-select -s /Applications/Xcode_16.2.app 2>/dev/null || \
+          sudo xcode-select -s /Applications/Xcode_16.1.app 2>/dev/null || \
+          sudo xcode-select -s /Applications/Xcode_16.0.app 2>/dev/null || \
+          echo "Xcode 16 not found at standard paths, using default"
+          xcodebuild -version
 
       - name: Install dependencies
         working-directory: apps/mobile
