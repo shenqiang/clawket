@@ -86,6 +86,9 @@ jobs:
           EXPO_PUBLIC_REVENUECAT_ENABLED: ""
           EXPO_PUBLIC_POSTHOG_ENABLED: ""
           MACOS_ALLOW_SIGNING: "0"
+          # 强制指定 Catalyst destination（resolve_destination 的 grep 匹配可能失败
+          # 导致 fallback 到原生 Mac destination，产物路径不对）
+          MACOS_DESTINATION: "platform=macOS,variant=Mac Catalyst"
         run: npm run build:macos
 
       - name: Upload .app bundle
