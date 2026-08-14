@@ -51,28 +51,13 @@ jobs:
         working-directory: apps/mobile
         run: npx expo prebuild --platform ios --no-install
 
-      # 修复 expo-sharing-extension 的 Swift 6 并发错误（EAS appExtensions 生成代码）
-      # 用宽松正则匹配所有 self.saveDataToAppGroup(...) / self.copyAndProcessFile(...) 调用，
-      # 包进 MainActor.assumeIsolated（参数可能是变量或字面量）
-      - name: Patch share extension (Swift 6 concurrency)
+      # 修复 expo-sharing-extension 的 Swift 6 并发错误：
+      # EAS appExtensions 生成的 ShareIntoViewController 在 Swift 6 语言模式下有
+      # MainActor 隔离错误（调用点在 continuation 异步上下文）。给该 target 单独
+      # 设置 SWIFT_STRICT_CONCURRENCY=minimal（不动源码，避免破坏嵌套结构）。
+      - name: Patch share extension target (relax concurrency)
         working-directory: apps/mobile
-        run: |
-          FILE=ios/expo-sharing-extension/ShareIntoViewController.swift
-          grep -c "assumeIsolated" "$FILE" || true
-          # 给方法加 @MainActor 标注
-          perl -0pi -e 's/(\n\s*)private func copyAndProcessFile\(/$1@MainActor\n$1private func copyAndProcessFile(/' "$FILE"
-          perl -0pi -e 's/(\n\s*)private func saveDataToAppGroup\(/$1@MainActor\n$1private func saveDataToAppGroup(/' "$FILE"
-          # 包装所有 self.copyAndProcessFile(...) 调用（支持多行）
-          perl -0pi -e 's/let result = self\.copyAndProcessFile\((url: url, type: type)\)/let result = MainActor.assumeIsolated { self.copyAndProcessFile($1) }/g' "$FILE"
-          perl -0pi -e 's/return self\.copyAndProcessFile\((url: url, type: type)\)/return MainActor.assumeIsolated { self.copyAndProcessFile($1) }/g' "$FILE"
-          # 包装所有 self.saveDataToAppGroup(...) 调用：先合并多行调用为单行再替换
-          perl -0pi -e 's/let result = self\.saveDataToAppGroup\(\n(\s+)\)/let result = self.saveDataToAppGroup($1)/g' "$FILE"
-          perl -0pi -e 's/(let result = )self\.saveDataToAppGroup\(([^;]*?)\)/$1MainActor.assumeIsolated { self.saveDataToAppGroup($2) }/g' "$FILE"
-          perl -0pi -e 's/(return )self\.saveDataToAppGroup\(([^;]*?)\)/$1MainActor.assumeIsolated { self.saveDataToAppGroup($2) }/g' "$FILE"
-          perl -0pi -e 's/(let result = )self\.copyAndProcessFile\(([^;]*?)\)/$1MainActor.assumeIsolated { self.copyAndProcessFile($2) }/g' "$FILE"
-          perl -0pi -e 's/(return )self\.copyAndProcessFile\(([^;]*?)\)/$1MainActor.assumeIsolated { self.copyAndProcessFile($2) }/g' "$FILE"
-          echo "=== assumeIsolated 计数: $(grep -c 'assumeIsolated' "$FILE") ==="
-          grep -n "assumeIsolated\|saveDataToAppGroup(" "$FILE" | head -10
+        run: python3 ../../scripts/patch-share-target.py
 
       # 关键：不设置 EXPO_PUBLIC_REVENUECAT_ENABLED → 自动解锁 Pro（多连接免费）
       # MACOS_ALLOW_SIGNING 默认 0 → 无需 Apple 开发者签名
