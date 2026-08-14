@@ -98,5 +98,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: clawket-macos-catalyst
-          path: /tmp/clawket-mac-build/Build/Products/Release-maccatalyst/Clawket.app
+          # iOS app on Mac（Designed for iPad/iPhone）产物在 Release-iphoneos
+          path: |
+            /tmp/clawket-mac-build/Build/Products/Release-iphoneos/Clawket.app
+            /tmp/clawket-mac-build/Build/Products/Release-maccatalyst/Clawket.app
           if-no-files-found: error
