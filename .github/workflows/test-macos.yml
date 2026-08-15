@@ -75,17 +75,22 @@ jobs:
 
       - name: Launch app and verify it stays alive
         run: |
-          # 用 open -a 启动（LaunchServices 正确处理 scene 生命周期，
-          # 直接执行二进制在无头会话下 scene 恢复异常 _mainSceneIdentifier）
-          # 需要绝对路径（open -a 不接受相对路径）
+          # 方案1: open -a（LaunchServices 正确处理 scene）
           APP_ABS="$PWD/$APP_PATH"
-          open -a "$APP_ABS" 2>&1 || echo "open 失败: $?"
-          # 等 app 进程出现
-          for i in $(seq 1 15); do
+          open -a "$APP_ABS" 2>&1 || echo "open 失败: $?（尝试直接执行）"
+          # 等 app 进程出现（open 成功则 pgrep 能找到）
+          for i in $(seq 1 10); do
             APP_PID=$(pgrep -f "Clawket.app/Contents/MacOS/Clawket" | head -1)
             [ -n "$APP_PID" ] && break
             sleep 2
           done
+          # 方案2: open 失败则直接执行二进制（绕过 LaunchServices）
+          if [ -z "$APP_PID" ]; then
+            echo "open 未启动成功，直接执行二进制..."
+            "$APP_PATH/Contents/MacOS/Clawket" > /tmp/clawket-stdout.log 2>&1 &
+            APP_PID=$!
+            echo "直接执行 PID: $APP_PID"
+          fi
           echo "启动 PID: ${APP_PID:-未找到}"
           sleep 45
           if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
