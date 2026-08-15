@@ -4,11 +4,26 @@
 2. 移除主 app 对 expo-sharing-extension 的嵌入引用（Catalyst 下 extension 不编译，
    主 app 的 Embed Foundation Extensions phase 拷贝会失败）
 """
-import re, sys
+import re, sys, json, os
 
 path = "ios/Clawket.xcodeproj/project.pbxproj"
 src = open(path).read()
 orig = src
+
+# 0. prebuild 会重写 app.json 丢失 hermes 设置，这里强制关闭 Hermes（JS 文本 bundle）
+# （Hermes bytecode 会压缩混淆字符串，导致 JS 层补丁不可靠）
+try:
+    appjson_path = "app.json"
+    if os.path.exists(appjson_path):
+        d = json.load(open(appjson_path))
+        if "hermes" not in d.get("expo", {}) or d["expo"]["hermes"] is not False:
+            d.setdefault("expo", {})["hermes"] = False
+            json.dump(d, open(appjson_path, "w"), indent=2, ensure_ascii=False)
+            print("app.json hermes 已强制 False")
+        else:
+            print("app.json hermes 已是 False")
+except Exception as e:
+    print(f"app.json hermes 设置失败: {e}")
 
 # 1. 定位 Clawket target 的 buildConfigurationList
 m = re.search(r'/\* Clawket \*/ = \{\n[^}]*?buildConfigurationList = ([A-F0-9]{24})[^;]*;', src)
