@@ -90,6 +90,23 @@ jobs:
         working-directory: apps/mobile
         run: python3 ../../scripts/patch-build-script.py
 
+      # 诊断：确认补丁落点（bundle 用的 react-native 源码路径）
+      - name: Verify patch targets exist
+        run: |
+          echo "=== node_modules 布局 ==="
+          ls -d node_modules/react-native 2>/dev/null && echo "根: node_modules/react-native ✓" || echo "根: 无"
+          ls -d apps/mobile/node_modules/react-native 2>/dev/null && echo "mobile: node_modules/react-native ✓" || echo "mobile: 无"
+          echo "=== ScrollView.js 补丁状态 ==="
+          for p in node_modules apps/mobile/node_modules; do
+            f="$p/react-native/Libraries/Components/ScrollView/ScrollView.js"
+            [ -f "$f" ] && echo "$f: $(grep -c 'Hermes catalyst patch' "$f" 2>/dev/null) 处补丁" || true
+          done
+          echo "=== RefreshControl.js 补丁状态 ==="
+          for p in node_modules apps/mobile/node_modules; do
+            f="$p/react-native/Libraries/Components/RefreshControl/RefreshControl.js"
+            [ -f "$f" ] && echo "$f: $(grep -c 'Hermes catalyst patch' "$f" 2>/dev/null) 处补丁" || true
+          done
+
       - name: Build Mac Catalyst app
         working-directory: apps/mobile
         env:
