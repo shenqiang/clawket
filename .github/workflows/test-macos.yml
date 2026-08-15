@@ -74,7 +74,9 @@ jobs:
         run: |
           # 用 open -a 启动（LaunchServices 正确处理 scene 生命周期，
           # 直接执行二进制在无头会话下 scene 恢复异常 _mainSceneIdentifier）
-          open -a "$APP_PATH"
+          # 需要绝对路径（open -a 不接受相对路径）
+          APP_ABS="$PWD/$APP_PATH"
+          open -a "$APP_ABS" 2>&1 || echo "open 失败: $?"
           # 等 app 进程出现
           for i in $(seq 1 15); do
             APP_PID=$(pgrep -f "Clawket.app/Contents/MacOS/Clawket" | head -1)
