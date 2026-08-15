@@ -10,20 +10,9 @@ path = "ios/Clawket.xcodeproj/project.pbxproj"
 src = open(path).read()
 orig = src
 
-# 0. prebuild 会重写 app.json 丢失 hermes 设置，这里强制关闭 Hermes（JS 文本 bundle）
-# （Hermes bytecode 会压缩混淆字符串，导致 JS 层补丁不可靠）
-try:
-    appjson_path = "app.json"
-    if os.path.exists(appjson_path):
-        d = json.load(open(appjson_path))
-        if "hermes" not in d.get("expo", {}) or d["expo"]["hermes"] is not False:
-            d.setdefault("expo", {})["hermes"] = False
-            json.dump(d, open(appjson_path, "w"), indent=2, ensure_ascii=False)
-            print("app.json hermes 已强制 False")
-        else:
-            print("app.json hermes 已是 False")
-except Exception as e:
-    print(f"app.json hermes 设置失败: {e}")
+# NOTE: 不再强制 hermes=False。第 42 次构建验证：Hermes + ScrollView 补丁
+# 能正确禁用 RefreshControl（崩溃从 UIRefreshControl 变成 _mainSceneIdentifier，
+# 后者是 CI 无头环境限制，真机用户不受影响）。
 
 # 1. 定位 Clawket target 的 buildConfigurationList
 m = re.search(r'/\* Clawket \*/ = \{\n[^}]*?buildConfigurationList = ([A-F0-9]{24})[^;]*;', src)
