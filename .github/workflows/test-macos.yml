@@ -48,8 +48,12 @@ jobs:
 
       - name: Ad-hoc sign (bypass Gatekeeper for CLI launch)
         run: |
+          # zip 解压可能丢失可执行位，先恢复
+          chmod +x "$APP_PATH/Contents/MacOS/Clawket" 2>/dev/null || true
+          chmod -R u+w "$APP_PATH" 2>/dev/null || true
           codesign --force --deep --sign - "$APP_PATH" 2>&1 | tail -2
           echo "签名完成: $(codesign -dv "$APP_PATH" 2>&1 | grep -i 'Signature' | head -1)"
+          ls -la "$APP_PATH/Contents/MacOS/Clawket"
 
       - name: Launch app and verify it stays alive
         run: |
