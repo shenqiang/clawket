@@ -49,6 +49,13 @@ if "metro" not in src:
     print("Metro 缓存清理已注入")
 else:
     print("Metro 缓存清理已存在")
+# ScrollView 层 RefreshControl 补丁（Catalyst 下 refreshControl prop 置 null）
+inject6 = 'python3 "$GITHUB_WORKSPACE/scripts/patch-rn-scrollview-refreshcontrol.py" "$ROOT_DIR/../.."\n'
+if "patch-rn-scrollview-refreshcontrol" not in src:
+    src = src.replace("ensure_pods\n", inject6 + "ensure_pods\n", 1)
+    print("ScrollView RefreshControl 补丁调用已注入")
+else:
+    print("ScrollView RefreshControl 补丁调用已存在")
 
 # 3. 修复 resolve_destination：workspace 可能尚未生成（pod install 顺序问题），
 # 且 scheme 不支持 Catalyst 时 fallback 会选错 destination。
