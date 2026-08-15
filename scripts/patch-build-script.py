@@ -42,6 +42,13 @@ if "patch-rn-refreshcontrol-native" not in src:
     print("RefreshControl 原生层补丁调用已注入")
 else:
     print("RefreshControl 原生层补丁调用已存在")
+# 清 Metro 缓存（patch JS 后必须，否则 bundle 用旧转换）
+inject5 = 'rm -rf "$ROOT_DIR/../../node_modules/.cache/metro" "$TMPDIR/metro-*" 2>/dev/null || true\n'
+if "metro" not in src:
+    src = src.replace("ensure_pods\n", inject5 + "ensure_pods\n", 1)
+    print("Metro 缓存清理已注入")
+else:
+    print("Metro 缓存清理已存在")
 
 # 3. 修复 resolve_destination：workspace 可能尚未生成（pod install 顺序问题），
 # 且 scheme 不支持 Catalyst 时 fallback 会选错 destination。
