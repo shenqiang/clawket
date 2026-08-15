@@ -1,0 +1,113 @@
+name: Test Clawket macOS (cloud smoke test)
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Build run ID to test (default: latest successful macOS build)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  smoke-test:
+    runs-on: macos-15
+    steps:
+      - name: Resolve latest successful build run
+        id: resolve
+        run: |
+          if [[ -n "${{ github.event.inputs.run_id }}" ]]; then
+            echo "run_id=${{ github.event.inputs.run_id }}" >> "$GITHUB_OUTPUT"
+          else
+            # 找最近一个成功的 build-macos.yml run（用 GITHUB_TOKEN）
+            RUN=$(curl -s -H "Authorization: Bearer ${{ github.token }}" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/workflows/build-macos.yml/runs?status=success&per_page=1" \
+              | python3 -c "import json,sys; print(json.load(sys.stdin)['workflow_runs'][0]['id'])")
+            echo "run_id=$RUN" >> "$GITHUB_OUTPUT"
+            echo "使用最近成功构建 run: $RUN"
+          fi
+
+      - name: Download .app artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: clawket-macos-catalyst
+          path: ./app
+          run-id: ${{ steps.resolve.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Locate and inspect app
+        run: |
+          APP_PATH=$(find . -name "Clawket.app" -maxdepth 5 | head -1)
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+          echo "✅ 找到 app: $APP_PATH"
+          ls -la "$APP_PATH/Contents/MacOS/"
+          file "$APP_PATH/Contents/MacOS/Clawket"
+
+      - name: Ad-hoc sign (bypass Gatekeeper for CLI launch)
+        run: |
+          codesign --force --deep --sign - "$APP_PATH" 2>&1 | tail -2
+          echo "签名完成: $(codesign -dv "$APP_PATH" 2>&1 | grep -i 'Signature' | head -1)"
+
+      - name: Launch app and verify it stays alive
+        run: |
+          # 直接启动二进制（后台），等 RN/Hermes bundle 加载（最长 60s）
+          "$APP_PATH/Contents/MacOS/Clawket" > /tmp/clawket-stdout.log 2>&1 &
+          APP_PID=$!
+          echo "启动 PID: $APP_PID"
+          sleep 45
+          if kill -0 "$APP_PID" 2>/dev/null; then
+            echo "✅✅ 进程存活 45 秒，未崩溃！"
+          else
+            echo "❌ 进程已退出！退出码: $?"
+            echo "--- stdout/stderr ---"
+            tail -30 /tmp/clawket-stdout.log
+            exit 1
+          fi
+          # 再等 30 秒确认稳定（RN 首屏渲染需要时间）
+          sleep 30
+          if kill -0 "$APP_PID" 2>/dev/null; then
+            echo "✅✅ 进程存活 75 秒，启动稳定！"
+          else
+            echo "❌ 75 秒后进程退出（启动后崩溃）"
+            tail -30 /tmp/clawket-stdout.log
+            exit 1
+          fi
+
+      - name: Check for crash reports
+        run: |
+          echo "--- 崩溃报告目录 ---"
+          ls -la ~/Library/Logs/DiagnosticReports/ 2>/dev/null | tail -5 || echo "无 DiagnosticReports 目录"
+          # 检查最近 2 分钟内的 Clawket 崩溃
+          CRASHES=$(find ~/Library/Logs/DiagnosticReports /Library/Logs/DiagnosticReports -name "Clawket*" -mmin -5 2>/dev/null | head -5)
+          if [[ -n "$CRASHES" ]]; then
+            echo "⚠️ 发现崩溃报告:"
+            echo "$CRASHES"
+            head -30 $(echo "$CRASHES" | head -1)
+          else
+            echo "✅ 无 Clawket 崩溃报告"
+          fi
+
+      - name: Screenshot the running app
+        run: |
+          screencapture -x /tmp/clawket-screen.png
+          ls -la /tmp/clawket-screen.png
+          echo "截图完成"
+
+      - name: Check app logs (Hermes/RN errors)
+        run: |
+          echo "--- app stdout 关键错误 ---"
+          grep -iE "error|exception|fatal|crash|abort" /tmp/clawket-stdout.log | head -10 || echo "无错误输出"
+          echo "--- 系统日志中 Clawket 相关 ---"
+          log show --last 3m --predicate 'process == "Clawket"' 2>/dev/null | grep -iE "error|fault|crash" | head -5 || echo "系统日志无 Clawket 错误"
+
+      - name: Upload screenshot + logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: clawket-smoke-test-evidence
+          path: |
+            /tmp/clawket-screen.png
+            /tmp/clawket-stdout.log
+          if-no-files-found: warn
