@@ -104,7 +104,11 @@ jobs:
           if [[ -n "$CRASHES" ]]; then
             echo "⚠️ 发现崩溃报告:"
             echo "$CRASHES"
-            head -30 $(echo "$CRASHES" | head -1)
+            for c in $CRASHES; do
+              echo "========== $c =========="
+              # 打印完整头部（进程信息 + 异常类型 + 触发线程 + 完整堆栈）
+              cat "$c"
+            done
           else
             echo "✅ 无 Clawket 崩溃报告"
           fi
