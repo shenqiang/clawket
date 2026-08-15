@@ -35,6 +35,13 @@ if "patch-rn-refreshcontrol" not in src:
     print("RefreshControl Catalyst 补丁调用已注入")
 else:
     print("RefreshControl Catalyst 补丁调用已存在")
+# RN RefreshControl 原生层补丁（Fabric _attach 也要禁）
+inject4 = 'python3 "$GITHUB_WORKSPACE/scripts/patch-rn-refreshcontrol-native.py" "$ROOT_DIR/../.."\n'
+if "patch-rn-refreshcontrol-native" not in src:
+    src = src.replace("ensure_pods\n", inject4 + "ensure_pods\n", 1)
+    print("RefreshControl 原生层补丁调用已注入")
+else:
+    print("RefreshControl 原生层补丁调用已存在")
 
 # 3. 修复 resolve_destination：workspace 可能尚未生成（pod install 顺序问题），
 # 且 scheme 不支持 Catalyst 时 fallback 会选错 destination。
