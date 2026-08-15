@@ -81,8 +81,10 @@ jobs:
             echo "✅✅ 进程存活 45 秒，未崩溃！"
           else
             echo "❌ 进程已退出！退出码: $?"
-            echo "--- stdout/stderr ---"
-            tail -30 /tmp/clawket-stdout.log
+            echo "--- stdout/stderr 完整内容 ---"
+            cat /tmp/clawket-stdout.log
+            echo "--- crash 报告 ---"
+            find ~/Library/Logs/DiagnosticReports /Library/Logs/DiagnosticReports -name "Clawket*" -mmin -10 2>/dev/null | while read c; do echo "===== $c ====="; head -80 "$c"; done
             exit 1
           fi
           # 再等 30 秒确认稳定（RN 首屏渲染需要时间）
@@ -91,7 +93,8 @@ jobs:
             echo "✅✅ 进程存活 75 秒，启动稳定！"
           else
             echo "❌ 75 秒后进程退出（启动后崩溃）"
-            tail -30 /tmp/clawket-stdout.log
+            cat /tmp/clawket-stdout.log
+            find ~/Library/Logs/DiagnosticReports /Library/Logs/DiagnosticReports -name "Clawket*" -mmin -10 2>/dev/null | while read c; do echo "===== $c ====="; head -80 "$c"; done
             exit 1
           fi
 
