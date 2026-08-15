@@ -55,6 +55,21 @@ jobs:
           echo "签名完成: $(codesign -dv "$APP_PATH" 2>&1 | grep -i 'Signature' | head -1)"
           ls -la "$APP_PATH/Contents/MacOS/Clawket"
 
+      - name: Diagnose GUI session (WindowServer availability)
+        run: |
+          echo "--- 当前用户 ---"
+          whoami; id -un
+          echo "--- GUI 会话检查 ---"
+          who 2>/dev/null || echo "无 who 输出"
+          echo "--- WindowServer 进程 ---"
+          pgrep -fl WindowServer || echo "❌ WindowServer 未运行"
+          echo "--- Aqua 会话 ---"
+          launchctl managername 2>/dev/null || echo "无 launchctl"
+          echo "--- 屏幕设备 ---"
+          system_profiler SPDisplaysDataType 2>/dev/null | head -10 || echo "无显示信息"
+          echo "--- 尝试 screencapture ---"
+          screencapture -x /tmp/test-capture.png 2>&1 && echo "✅ 截图成功" || echo "❌ 截图失败（无 GUI 会话）"
+
       - name: Launch app and verify it stays alive
         run: |
           # 直接启动二进制（后台），等 RN/Hermes bundle 加载（最长 60s）
