@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""修复 UIRefreshControl 在 Mac Catalyst 崩溃
-根因: RN 的 RefreshControl 在 iOS 分支渲染 PullToRefreshViewNativeComponent，
-Catalyst 下 UIRefreshControl 不受支持 → 抛 _UICatalystUnsupportedMacIdiomBehavior 崩溃。
-修复: render() 开头加 Catalyst 判断，Platform.OS === 'macos' 时返回 null（禁用下拉刷新）。
+"""修复 UIRefreshControl 在 Mac Catalyst 崩溃（JS 层，v2）
+Catalyst 下 Platform.OS === 'ios'（不是 'macos'）——v1 补丁判断错误无效。
+正确判断: Platform.isMacCatalyst（RN 提供，Catalyst 下为 true）。
+修复: RefreshControl.render() 开头加 Platform.isMacCatalyst 判断返回 null。
 用法: python3 patch-rn-refreshcontrol.py [repo_root]
 """
 import os, sys
@@ -12,22 +12,27 @@ path = f"{repo_root}/node_modules/react-native/Libraries/Components/RefreshContr
 
 if not os.path.exists(path):
     print(f"文件不存在: {path}")
-    sys.exit(0)  # no-op 必须 exit 0
+    sys.exit(0)
 
 src = open(path).read()
 orig = src
 
-MARKER = "// Hermes catalyst patch: UIRefreshControl unsupported"
+MARKER = "Hermes catalyst patch"
 if MARKER in src:
     print("RefreshControl 已有 Catalyst 补丁，跳过")
     sys.exit(0)
 
-# 在 render() 开头注入 Catalyst 判断
+# v1 的 Platform.OS === 'macos' 判断（错误，替换掉）
+old_v1 = "    // Hermes catalyst patch: UIRefreshControl unsupported on Mac Catalyst\n    if (Platform.OS === 'macos') {\n      return null;\n    }\n"
+if old_v1 in src:
+    src = src.replace(old_v1, "", 1)
+    print("已移除 v1 错误补丁")
+
 old = "  render(): React.Node {\n    if (Platform.OS === 'ios') {"
 new = (
     "  render(): React.Node {\n"
-    "    // Hermes catalyst patch: UIRefreshControl unsupported on Mac Catalyst\n"
-    "    if (Platform.OS === 'macos') {\n"
+    "    // Hermes catalyst patch v2: UIRefreshControl unsupported on Mac Catalyst\n"
+    "    if (Platform.isMacCatalyst === true || Platform.isMacCatalyst) {\n"
     "      return null;\n"
     "    }\n"
     "    if (Platform.OS === 'ios') {"
@@ -38,4 +43,4 @@ if old not in src:
 
 src = src.replace(old, new, 1)
 open(path, "w").write(src)
-print(f"RefreshControl Catalyst 补丁已应用: {path}")
+print(f"RefreshControl Catalyst 补丁已应用 (v2, Platform.isMacCatalyst): {path}")
