@@ -51,8 +51,11 @@ jobs:
           # zip 解压可能丢失可执行位，先恢复
           chmod +x "$APP_PATH/Contents/MacOS/Clawket" 2>/dev/null || true
           chmod -R u+w "$APP_PATH" 2>/dev/null || true
-          codesign --force --deep --sign - "$APP_PATH" 2>&1 | tail -2
-          echo "签名完成: $(codesign -dv "$APP_PATH" 2>&1 | grep -i 'Signature' | head -1)"
+          # 移除隔离属性（下载的文件有 com.apple.quarantine）
+          xattr -dr com.apple.quarantine "$APP_PATH" 2>/dev/null || true
+          # 深签名（所有嵌套 framework）
+          codesign --force --deep --sign - "$APP_PATH" 2>&1 | tail -3
+          echo "签名结果: $(codesign -dv "$APP_PATH" 2>&1 | grep -iE 'Signature|Identifier' | head -2)"
           ls -la "$APP_PATH/Contents/MacOS/Clawket"
 
       - name: Diagnose GUI session (WindowServer availability)
