@@ -72,19 +72,25 @@ jobs:
 
       - name: Launch app and verify it stays alive
         run: |
-          # 直接启动二进制（后台），等 RN/Hermes bundle 加载（最长 60s）
-          "$APP_PATH/Contents/MacOS/Clawket" > /tmp/clawket-stdout.log 2>&1 &
-          APP_PID=$!
-          echo "启动 PID: $APP_PID"
+          # 用 open -a 启动（LaunchServices 正确处理 scene 生命周期，
+          # 直接执行二进制在无头会话下 scene 恢复异常 _mainSceneIdentifier）
+          open -a "$APP_PATH"
+          # 等 app 进程出现
+          for i in $(seq 1 15); do
+            APP_PID=$(pgrep -f "Clawket.app/Contents/MacOS/Clawket" | head -1)
+            [ -n "$APP_PID" ] && break
+            sleep 2
+          done
+          echo "启动 PID: ${APP_PID:-未找到}"
           sleep 45
-          if kill -0 "$APP_PID" 2>/dev/null; then
+          if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
             echo "✅✅ 进程存活 45 秒，未崩溃！"
           else
             echo "❌ 进程已退出！退出码: $?"
             echo "--- stdout/stderr 完整内容 ---"
-            cat /tmp/clawket-stdout.log
+            cat /tmp/clawket-stdout.log 2>/dev/null || true
             echo "--- crash 报告 ---"
-            find ~/Library/Logs/DiagnosticReports /Library/Logs/DiagnosticReports -name "Clawket*" -mmin -10 2>/dev/null | while read c; do echo "===== $c ====="; head -80 "$c"; done
+            find ~/Library/Logs/DiagnosticReports /Library/Logs/DiagnosticReports -name "Clawket*" -mmin -10 2>/dev/null | while read c; do echo "===== $c ====="; head -60 "$c"; done
             exit 1
           fi
           # 再等 30 秒确认稳定（RN 首屏渲染需要时间）
@@ -93,8 +99,8 @@ jobs:
             echo "✅✅ 进程存活 75 秒，启动稳定！"
           else
             echo "❌ 75 秒后进程退出（启动后崩溃）"
-            cat /tmp/clawket-stdout.log
-            find ~/Library/Logs/DiagnosticReports /Library/Logs/DiagnosticReports -name "Clawket*" -mmin -10 2>/dev/null | while read c; do echo "===== $c ====="; head -80 "$c"; done
+            cat /tmp/clawket-stdout.log 2>/dev/null || true
+            find ~/Library/Logs/DiagnosticReports /Library/Logs/DiagnosticReports -name "Clawket*" -mmin -10 2>/dev/null | while read c; do echo "===== $c ====="; head -60 "$c"; done
             exit 1
           fi
 
