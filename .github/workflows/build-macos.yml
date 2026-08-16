@@ -67,6 +67,26 @@ jobs:
         working-directory: apps/mobile
         run: python3 ../../scripts/patch-refreshcontrol-appdelegate.py
 
+      # 预案 B：patch app 源码，Catalyst 下禁用所有 RefreshControl（双保险）
+      # app 源码被 Metro 强制追踪，改动必然进 bundle（比 patch node_modules 可靠）
+      - name: Patch app source (disable RefreshControl, plan B)
+        run: python3 ../../scripts/patch-app-refreshcontrol.py
+        working-directory: apps/mobile
+
+      # 中间检查点：确认两个 patch 都落在正确位置（秒级 fail fast）
+      - name: Verify patches applied (fail fast)
+        working-directory: apps/mobile
+        run: |
+          echo "=== AppDelegate swizzle ==="
+          grep -c "hermes_safeDidMoveToSuperview" ios/Clawket/AppDelegate.swift && echo "✅ swizzle 已注入" || { echo "❌ swizzle 缺失"; exit 1; }
+          grep -c "hermesInstallCatalystRefreshFix" ios/Clawket/AppDelegate.swift || { echo "❌ install 调用缺失"; exit 1; }
+          echo "=== app 源码 RefreshControl patch ==="
+          N=$(grep -rl "refreshControl={__CATALYST__ ? null" ../../apps/mobile/src 2>/dev/null | wc -l)
+          echo "已 patch 文件数: $N"
+          [ "$N" -ge 20 ] || { echo "❌ patch 文件数过少: $N"; exit 1; }
+          grep -c "__CATALYST__" ../../apps/mobile/index.ts && echo "✅ __CATALYST__ 已注入入口" || { echo "❌ 入口缺 __CATALYST__"; exit 1; }
+          echo "✅ 所有 patch 验证通过"
+
       # 修复 expo-sharing-extension 的 Swift 6 并发错误：
       # EAS appExtensions 生成的 ShareIntoViewController 的 loadItem 完成回调是
       # nonisolated @Sendable 闭包，内部同步调用 MainActor 方法导致 Swift 6 报错。
