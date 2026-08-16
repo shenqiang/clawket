@@ -61,6 +61,11 @@ jobs:
         working-directory: apps/mobile
         run: python3 ../../scripts/patch-pbxproj-catalyst.py
 
+      # UIRefreshControl Catalyst 崩溃终极修复：ObjC +load swizzle（100% 可靠）
+      - name: Patch UIRefreshControl swizzle (Catalyst crash fix)
+        working-directory: apps/mobile
+        run: python3 ../../scripts/patch-refreshcontrol-objc.py
+
       # 修复 expo-sharing-extension 的 Swift 6 并发错误：
       # EAS appExtensions 生成的 ShareIntoViewController 的 loadItem 完成回调是
       # nonisolated @Sendable 闭包，内部同步调用 MainActor 方法导致 Swift 6 报错。
