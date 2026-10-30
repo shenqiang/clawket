@@ -1,0 +1,66 @@
+name: Build Clawket APK (no GMS)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install dependencies
+        working-directory: apps/mobile
+        run: npm install
+
+      - name: Generate self-signed release keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore /tmp/clawket-release.keystore \
+            -alias upload \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass clawketpass123 \
+            -keypass clawketpass123 \
+            -dname "CN=Clawket Self-Hosted, OU=Dev, O=Clawket, L=Shanghai, ST=Shanghai, C=CN"
+
+      # 关键：不设置任何 EXPO_PUBLIC_REVENUECAT_* / EXPO_PUBLIC_POSTHOG_*
+      # 源码逻辑：未配置 → RevenueCat disabled → resolveProAccessEnabled 返回 true → Pro 默认全解锁
+      # build-android-apk.sh 中的 CLAWKET_REQUIRE_* 校验前缀已在源内移除（自编译分支）
+      # GRADLE_OPTS 加大堆内存，避免 D8 dex 合并 OutOfMemory
+      - name: Build release APK (no RevenueCat / no GMS)
+        working-directory: apps/mobile
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+          CLAWKET_ANDROID_KEYSTORE_PATH: /tmp/clawket-release.keystore
+          CLAWKET_ANDROID_KEY_ALIAS: upload
+          CLAWKET_ANDROID_KEYSTORE_PASSWORD: clawketpass123
+          CLAWKET_ANDROID_KEY_PASSWORD: clawketpass123
+          EXPO_PUBLIC_REVENUECAT_ENABLED: ""
+          EXPO_PUBLIC_POSTHOG_ENABLED: ""
+          GRADLE_OPTS: "-Xmx4g -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
+          ORG_GRADLE_PROJECT_org.gradle.jvmargs: "-Xmx4g -XX:MaxMetaspaceSize=1g"
+        run: bash scripts/build-android-apk.sh
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: clawket-no-gms-apk
+          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
